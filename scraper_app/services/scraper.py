@@ -23,17 +23,38 @@ VIDEOS_DIR = os.path.join(BASE_DIR, "videos")
 def get_driver():
     """Create Selenium WebDriver"""
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1280,720")
+    chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-popup-blocking")
+    chrome_options.add_argument("--disable-notifications")
+    chrome_options.add_argument("--disable-infobars")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option("useAutomationExtension", False)
+    chrome_options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
 
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()), options=chrome_options
     )
+
+    # Additional stealth measures
+    driver.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": """
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]});
+            Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+        """
+        },
+    )
+
     return driver
 
 
@@ -48,66 +69,94 @@ def scrape_playlists(query, max_playlists=15):
 
         print(f"🔍 Searching for '{query}' playlists...")
         driver.get(search_url)
-        time.sleep(1)
 
-        for _ in range(3):
+        # Wait longer for page to load
+        time.sleep(3)
+
+        # Scroll to load results
+        for _ in range(5):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(0.5)
+            time.sleep(1)
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
 
-        # Find all playlist renderers
+        # Try different selectors
         playlist_renderers = soup.find_all("ytd-playlist-renderer")
 
-        seen_ids = set()
-        for renderer in playlist_renderers:
-            if len(playlists) >= max_playlists:
-                break
+        if not playlist_renderers:
+            # Try alternative: find links to playlists
+            playlist_links = soup.find_all("a", href=re.compile(r"/playlist\?list="))
+            for link in playlist_links[:max_playlists]:
+                href = link.get("href", "")
+                match = re.search(r"/playlist\?list=([A-Za-z0-9_-]+)", href)
+                if match:
+                    playlist_id = match.group(1)
+                    title = link.get("title", "") or "Untitled Playlist"
+                    thumbnail = (
+                        f"https://img.youtube.com/vi/{playlist_id}/hqdefault.jpg"
+                    )
 
-            # Get playlist ID
-            link = renderer.find("a", href=re.compile(r"/playlist\?list="))
-            if not link:
-                continue
+                    if playlist_id not in [p.get("playlist_id") for p in playlists]:
+                        playlists.append(
+                            {
+                                "playlist_id": playlist_id,
+                                "url": f"https://www.youtube.com/playlist?list={playlist_id}",
+                                "title": title[:200],
+                                "thumbnail": thumbnail,
+                                "video_count": 0,
+                            }
+                        )
+        else:
+            # Original method
+            seen_ids = set()
+            for renderer in playlist_renderers:
+                if len(playlists) >= max_playlists:
+                    break
 
-            href = link.get("href", "")
-            match = re.search(r"/playlist\?list=([A-Za-z0-9_-]+)", href)
-            if not match:
-                continue
+                link = renderer.find("a", href=re.compile(r"/playlist\?list="))
+                if not link:
+                    continue
 
-            playlist_id = match.group(1)
-            if playlist_id in seen_ids:
-                continue
-            seen_ids.add(playlist_id)
+                href = link.get("href", "")
+                match = re.search(r"/playlist\?list=([A-Za-z0-9_-]+)", href)
+                if not match:
+                    continue
 
-            # Get title
-            title = "Untitled Playlist"
-            title_elem = renderer.find("yt-formatted-string")
-            if title_elem:
-                title = title_elem.get_text(strip=True)
-            if not title:
-                title = link.get("title", "") or "Untitled Playlist"
+                playlist_id = match.group(1)
+                if playlist_id in seen_ids:
+                    continue
+                seen_ids.add(playlist_id)
 
-            # Get thumbnail
-            thumbnail = f"https://img.youtube.com/vi/{playlist_id}/hqdefault.jpg"
-            img = renderer.find("img")
-            if img and img.get("src"):
-                thumbnail = img.get("src")
+                title = "Untitled Playlist"
+                title_elem = renderer.find("yt-formatted-string")
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                if not title:
+                    title = link.get("title", "") or "Untitled Playlist"
 
-            playlists.append(
-                {
-                    "playlist_id": playlist_id,
-                    "url": f"https://www.youtube.com/playlist?list={playlist_id}",
-                    "title": title[:200],
-                    "thumbnail": thumbnail,
-                    "video_count": 0,
-                }
-            )
+                thumbnail = f"https://img.youtube.com/vi/{playlist_id}/hqdefault.jpg"
+                img = renderer.find("img")
+                if img and img.get("src"):
+                    thumbnail = img.get("src")
+
+                playlists.append(
+                    {
+                        "playlist_id": playlist_id,
+                        "url": f"https://www.youtube.com/playlist?list={playlist_id}",
+                        "title": title[:200],
+                        "thumbnail": thumbnail,
+                        "video_count": 0,
+                    }
+                )
 
         print(f"  Found {len(playlists)} playlists")
         return playlists
 
     except Exception as e:
         print(f"Error: {e}")
+        import traceback
+
+        traceback.print_exc()
         return playlists
     finally:
         if driver:
