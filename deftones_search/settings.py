@@ -54,14 +54,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "deftones_search.wsgi.application"
 
+import os
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "postgres",
-        "USER": "postgres.vuudejcomgtsrpkmqvpo",
-        "PASSWORD": "supabaseRogel89",
-        "HOST": "aws-1-ap-southeast-1.pooler.supabase.com",
-        "PORT": "6543",
+        "NAME": os.environ.get("DB_NAME", "postgres"),
+        "USER": os.environ.get("DB_USER", "postgres.vuudejcomgtsrpkmqvpo"),
+        "PASSWORD": os.environ.get("DB_PASSWORD", "supabaseRogel89"),
+        "HOST": os.environ.get("DB_HOST", "aws-1-ap-southeast-1.pooler.supabase.com"),
+        "PORT": os.environ.get("DB_PORT", "6543"),
     }
 }
 
