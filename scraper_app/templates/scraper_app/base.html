@@ -194,11 +194,30 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark py-3" style="background-color: #0f0f0f;">
         <div class="container">
-            <a class="navbar-brand" href="{% url 'home' %}">
+            <a class="navbar-brand me-auto" href="{% url 'home' %}">
                 <i class="bi bi-youtube text-danger"></i> Playlist Search
             </a>
+            <input class="form-control" type="search" id="live-search" placeholder="Search playlists..." 
+                   style="background:#222;border:1px solid #444;color:#fff;max-width:300px;"
+                   value="{{ query|default:'' }}">
         </div>
     </nav>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var searchInput = document.getElementById('live-search');
+        if (searchInput) {
+            searchInput.addEventListener('keyup', function(e) {
+                if (e.key === 'Enter') {
+                    var query = this.value.trim();
+                    if (query) {
+                        window.location.href = '/search/?q=' + encodeURIComponent(query);
+                    }
+                }
+            });
+        }
+    });
+    </script>
 
     <main class="py-4" style="width: 90%; margin: 0 auto;">
         {% block content %}{% endblock %}
