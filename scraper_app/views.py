@@ -3,7 +3,6 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from .models import Playlist, Video
 from .services.scraper import (
-    search_and_scrape_playlists,
     load_from_json,
     get_playlist_by_id,
     get_video_by_id,
@@ -11,52 +10,15 @@ from .services.scraper import (
 
 
 def home(request):
-    """Home page with search box"""
-    query = request.GET.get("q", "")
-    sort_by = request.GET.get("sort", "view_count")
-    playlists = []
-    error_message = None
-    is_loading = False
-    recent_data = None
-
-    if query:
-        existing_data = load_from_json()
-
-        if existing_data and existing_data.get("search_query") == query:
-            for pl_data in existing_data.get("playlists", []):
-                playlists.append(pl_data)
-        else:
-            is_loading = True
-    else:
-        recent_data = load_from_json()
+    """Home page - show recent playlists from JSON"""
+    recent_data = load_from_json()
+    playlists = recent_data.get("playlists", []) if recent_data else []
 
     context = {
-        "query": query,
-        "sort_by": sort_by,
         "playlists": playlists,
-        "error_message": error_message,
-        "is_loading": is_loading,
         "recent_data": recent_data,
     }
     return render(request, "scraper_app/home.html", context)
-
-
-def search_results(request):
-    """Perform search and save to JSON"""
-    query = request.GET.get("q", "")
-    sort_by = request.GET.get("sort", "view_count")
-
-    if not query:
-        return redirect("home")
-
-    result = search_and_scrape_playlists(
-        query, max_playlists=15, max_videos_per_playlist=50, sort_by=sort_by
-    )
-
-    if result:
-        return redirect(f"/?q={query}&sort={sort_by}")
-    else:
-        return redirect("home")
 
 
 def playlist_detail(request, playlist_id):
@@ -64,26 +26,30 @@ def playlist_detail(request, playlist_id):
     playlist = get_playlist_by_id(playlist_id)
 
     if not playlist:
-        # Try to fetch from database as fallback
-        db_playlist = get_object_or_404(Playlist, playlist_id=playlist_id)
-        videos = db_playlist.videos.all()
-        playlist = {
-            "playlist_id": db_playlist.playlist_id,
-            "title": db_playlist.title,
-            "url": db_playlist.url,
-            "video_count": db_playlist.video_count,
-            "thumbnail": db_playlist.get_thumbnail(),
-            "videos": [
-                {
-                    "video_id": v.video_id,
-                    "title": v.title,
-                    "url": v.url,
-                    "thumbnail": v.get_thumbnail(),
-                    "position": v.position,
-                }
-                for v in videos
-            ],
-        }
+        try:
+            db_playlist = Playlist.objects.get(playlist_id=playlist_id)
+            videos = db_playlist.videos.all()
+            playlist = {
+                "playlist_id": db_playlist.playlist_id,
+                "title": db_playlist.title,
+                "url": db_playlist.url,
+                "video_count": db_playlist.video_count,
+                "thumbnail": db_playlist.get_thumbnail(),
+                "videos": [
+                    {
+                        "video_id": v.video_id,
+                        "title": v.title,
+                        "url": v.url,
+                        "thumbnail": v.get_thumbnail(),
+                        "position": v.position,
+                    }
+                    for v in videos
+                ],
+            }
+        except Playlist.DoesNotExist:
+            from django.http import Http404
+
+            raise Http404("Playlist not found")
 
     context = {
         "playlist": playlist,
@@ -96,7 +62,6 @@ def video_player(request, video_id):
     video, playlist = get_video_by_id(video_id)
 
     if not video:
-        # Try database fallback
         db_video = Video.objects.filter(video_id=video_id).first()
         if db_video:
             video = {
@@ -114,7 +79,6 @@ def video_player(request, video_id):
 
             raise Http404("Video not found")
 
-    # Get related videos from same playlist
     related_videos = []
     if playlist and "videos" in playlist:
         related_videos = [v for v in playlist["videos"] if v["video_id"] != video_id][
@@ -129,33 +93,17 @@ def video_player(request, video_id):
     return render(request, "scraper_app/video_player.html", context)
 
 
+def search_results(request):
+    """Disabled - scraping not available"""
+    return redirect("home")
+
+
 @require_http_methods(["POST"])
 def start_search(request):
-    """AJAX endpoint to start search"""
-    query = request.POST.get("q", "")
-
-    if not query:
-        return JsonResponse({"success": False, "error": "No query provided"})
-
-    try:
-        # Start scraping in background
-        result = search_and_scrape_playlists(
-            query, max_playlists=10, max_videos_per_playlist=50
-        )
-
-        if result:
-            return JsonResponse(
-                {
-                    "success": True,
-                    "message": f"Scraped {result['total_playlists']} playlists",
-                    "redirect": "/",
-                }
-            )
-        else:
-            return JsonResponse({"success": False, "error": "Scraping failed"})
-
-    except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)})
+    """Disabled - scraping not available"""
+    return JsonResponse(
+        {"success": False, "error": "Scraping not available on this deployment"}
+    )
 
 
 def get_search_results(request):

@@ -1,28 +1,16 @@
 {% extends 'scraper_app/base.html' %}
 
-{% block title %}{% if query %}Search: {{ query }}{% else %}YouTube Playlist Search{% endif %}{% endblock %}
+{% block title %}YouTube Playlist Search{% endblock %}
 
 {% block content %}
 <div class="py-4"></div>
-
-<div id="loading-state" class="text-center py-5" style="min-height: 80vh; display: none; flex-direction: column; justify-content: center; align-items: center;">
-    <div class="spinner-border text-danger" role="status" style="width: 3rem; height: 3rem;">
-        <span class="visually-hidden">Loading...</span>
-    </div>
-    <h4 class="mt-4" style="color: #fff;">Searching YouTube...</h4>
-    <p class="text-muted">Scraping playlists and videos</p>
-    <div class="progress mt-3" style="height: 8px; max-width: 500px; width: 100%; background-color: #333; border-radius: 4px;">
-        <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" role="progressbar" style="width: 100%"></div>
-    </div>
-    <p class="mt-3 text-muted" id="progress-text">Initializing...</p>
-</div>
 
 <div id="results-container">
     {% if playlists %}
     <div class="row mb-3">
         <div class="col-12">
             <p class="text-muted">
-                <i class="bi bi-collection"></i> {{ playlists|length }} playlists found
+                <i class="bi bi-collection"></i> {{ playlists|length }} playlists
             </p>
         </div>
     </div>
@@ -49,57 +37,12 @@
         </div>
         {% endfor %}
     </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-collection-play display-1 text-muted"></i>
+        <h4 class="mt-3" style="color: #fff;">No playlists available</h4>
+        <p class="text-muted">Add playlists using the local scraper</p>
+    </div>
     {% endif %}
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    {% if is_loading %}
-    var progressText = document.getElementById('progress-text');
-    var steps = [
-        'Searching YouTube...',
-        'Finding playlists...',
-        'Scraping playlist details...',
-        'Loading videos...',
-        'Almost done...'
-    ];
-    var stepIndex = 0;
-    
-    document.getElementById('loading-state').style.display = 'block';
-    document.getElementById('results-container').style.display = 'none';
-    
-    // Update progress text periodically
-    var progressInterval = setInterval(function() {
-        progressText.textContent = steps[stepIndex];
-        stepIndex = (stepIndex + 1) % steps.length;
-    }, 3000);
-    
-    fetch("{% url 'start_search' %}", {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}',
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'q={{ query }}'
-    })
-    .then(response => response.json())
-    .then(data => {
-        clearInterval(progressInterval);
-        if (data.success) {
-            window.location.reload();
-        } else {
-            alert('Search failed: ' + data.error);
-            window.location.href = '/';
-        }
-    })
-    .catch(error => {
-        clearInterval(progressInterval);
-        console.error('Error:', error);
-        alert('Search failed');
-    });
-    {% endif %}
-});
-</script>
 {% endblock %}
