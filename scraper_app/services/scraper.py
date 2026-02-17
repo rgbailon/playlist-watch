@@ -302,12 +302,18 @@ def search_and_scrape_playlists(query, max_playlists=12):
 
     # Step 2: Get videos for each playlist
     for i, playlist in enumerate(playlists):
-        print(f"\n[{i + 1}/{len(playlists)}] {playlist['title'][:30]}...")
+        print(f"\n[{i + 1}/{len(playlists)}] Processing playlist...")
         videos = scrape_playlist_videos(playlist["playlist_id"], playlist["url"])
         playlist["video_count"] = len(videos)
 
         if videos:
             save_playlist_videos(playlist["playlist_id"], videos)
+            # Update thumbnail from first video
+            if videos[0].get("thumbnail"):
+                playlist["thumbnail"] = videos[0]["thumbnail"]
+            # Update title if we don't have one
+            if not playlist.get("title") or playlist["title"] == "Untitled Playlist":
+                playlist["title"] = f"Playlist {i + 1}"
 
         time.sleep(0.5)
 
