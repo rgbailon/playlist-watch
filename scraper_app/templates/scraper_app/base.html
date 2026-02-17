@@ -197,27 +197,16 @@
             <a class="navbar-brand me-auto" href="{% url 'home' %}">
                 <i class="bi bi-youtube text-danger"></i> Playlist Search
             </a>
-            <input class="form-control" type="search" id="live-search" placeholder="Search playlists..." 
-                   style="background:#222;border:1px solid #444;color:#fff;max-width:300px;"
-                   value="{{ query|default:'' }}">
+            <form method="post" action="{% url 'scrape' %}" class="d-flex">
+                {% csrf_token %}
+                <input class="form-control" type="search" name="q" placeholder="Search & scrape..." 
+                       style="background:#222;border:1px solid #444;color:#fff;max-width:300px;">
+                <button class="btn btn-danger" type="submit">
+                    <i class="bi bi-search"></i>
+                </button>
+            </form>
         </div>
     </nav>
-
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var searchInput = document.getElementById('live-search');
-        if (searchInput) {
-            searchInput.addEventListener('keyup', function(e) {
-                if (e.key === 'Enter') {
-                    var query = this.value.trim();
-                    if (query) {
-                        window.location.href = '/search/?q=' + encodeURIComponent(query);
-                    }
-                }
-            });
-        }
-    });
-    </script>
 
     <main class="py-4" style="width: 90%; margin: 0 auto;">
         {% block content %}{% endblock %}

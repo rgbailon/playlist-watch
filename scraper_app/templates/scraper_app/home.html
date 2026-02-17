@@ -1,56 +1,55 @@
 {% extends 'scraper_app/base.html' %}
 
-{% block title %}{% if query %}Search: {{ query }}{% else %}YouTube Playlist Search{% endif %}{% endblock %}
+{% block title %}YouTube Playlist Search{% endblock %}
 
 {% block content %}
 <div class="py-4"></div>
 
-<div id="results-container">
-    {% if query %}
-    <div class="row mb-3">
-        <div class="col-12">
-            <p class="text-muted">
-                <i class="bi bi-search"></i> {{ playlists|length }} results for "{{ query }}"
-            </p>
-        </div>
-    </div>
-    {% endif %}
-    
-    {% if playlists %}
-    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-2 g-md-3">
-        {% for playlist in playlists %}
-        <div class="col">
-            <a href="{% url 'playlist_detail' playlist.playlist_id %}" class="card-link text-decoration-none">
-                <div class="card h-100">
-                    <div class="playlist-thumbnail">
-                        {% if playlist.thumbnail %}
-                        <img src="{{ playlist.thumbnail }}" alt="{{ playlist.title }}" loading="lazy" onerror="this.style.display='none'">
-                        {% endif %}
-                        <span class="video-count-badge">
-                            <i class="bi bi-collection-play"></i> {{ playlist.video_count }}
-                        </span>
-                    </div>
-                    <div class="card-body">
-                        <h5 class="card-title">{{ playlist.title }}</h5>
-                        <p class="card-text">{{ playlist.video_count }} videos</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-        {% endfor %}
-    </div>
-    {% elif query %}
-    <div class="text-center py-5">
-        <i class="bi bi-search display-1 text-muted"></i>
-        <h4 class="mt-3" style="color: #fff;">No results found</h4>
-        <p class="text-muted">Try a different search term</p>
-    </div>
-    {% else %}
-    <div class="text-center py-5">
-        <i class="bi bi-collection-play display-1 text-muted"></i>
-        <h4 class="mt-3" style="color: #fff;">No playlists available</h4>
-        <p class="text-muted">Add playlists using the local scraper</p>
-    </div>
-    {% endif %}
+{% if messages %}
+{% for message in messages %}
+<div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
+{% endfor %}
+{% endif %}
+
+{% if playlists %}
+<div class="row mb-3">
+    <div class="col-12">
+        <p class="text-muted">
+            <i class="bi bi-collection"></i> {{ playlists|length }} playlists
+        </p>
+    </div>
+</div>
+
+<div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-2 g-md-3">
+    {% for playlist in playlists %}
+    <div class="col">
+        <a href="{% url 'playlist_detail' playlist.playlist_id %}" class="card-link text-decoration-none">
+            <div class="card h-100">
+                <div class="playlist-thumbnail">
+                    {% if playlist.thumbnail %}
+                    <img src="{{ playlist.thumbnail }}" alt="{{ playlist.title }}" loading="lazy" onerror="this.style.display='none'">
+                    {% endif %}
+                    <span class="video-count-badge">
+                        <i class="bi bi-collection-play"></i> {{ playlist.video_count }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ playlist.title }}</h5>
+                    <p class="card-text">{{ playlist.video_count }} videos</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-collection-play display-1 text-muted"></i>
+    <h4 class="mt-3" style="color: #fff;">No playlists yet</h4>
+    <p class="text-muted">Use the search box above to scrape playlists from YouTube</p>
+</div>
+{% endif %}
 {% endblock %}

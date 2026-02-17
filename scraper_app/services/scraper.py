@@ -1,31 +1,27 @@
 """
-YouTube Playlist Scraper - Complete BeautifulSoup Implementation
-Searches playlists, extracts all data, saves to JSON, and displays in web app
+YouTube Playlist Scraper - Separate JSON files for playlists and videos
 """
 
-import time
-import re
-import json
 import os
+import json
+import re
+import time
 from datetime import datetime
+
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 
-# JSON file path
-DATA_FILE = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "youtube_data.json"
-)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PLAYLISTS_FILE = os.path.join(BASE_DIR, "playlists.json")
+VIDEOS_DIR = os.path.join(BASE_DIR, "videos")
 
 
 def get_driver():
-    """Create and return an optimized Selenium WebDriver"""
+    """Create Selenium WebDriver"""
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
@@ -34,7 +30,6 @@ def get_driver():
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option("useAutomationExtension", False)
 
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()), options=chrome_options
@@ -42,132 +37,84 @@ def get_driver():
     return driver
 
 
-def build_search_url(query, max_results=10, sort_by="relevance"):
-    """
-    Build optimized YouTube search URL with filters
-    sort_by: relevance, upload_date, view_count"""
-    base_url = "https://www.youtube.com/results"
-
-    search_query = f"{query} playlist"
-
-    params = {"search_query": search_query, "sp": get_sort_param(sort_by)}
-
-    query_string = "&".join(f"{k}={v}" for k, v in params.items())
-    return f"{base_url}?{query_string}"
-
-
-def get_sort_param(sort_by):
-    """Get YouTube search parameter for sorting"""
-    sort_params = {
-        "relevance": "CAI%253D",
-        "upload_date": "CAI%253D",
-        "view_count": "CAyA%253D",
-        "rating": "CAyA%253D",
-    }
-    return sort_params.get(sort_by, "CAI%253D")
-
-
-def search_and_scrape_playlists(
-    query, max_playlists=15, max_videos_per_playlist=50, sort_by="view_count"
-):
-    """
-    Complete scraping workflow:
-    1. Search YouTube for playlists with optimized query
-    2. Visit each playlist
-    3. Extract all video data
-    4. Save to JSON file
-    """
+def scrape_playlists(query, max_playlists=15):
+    """Scrape playlist search results - gets URLs, thumbnails, video counts"""
     driver = None
-    all_data = {
-        "search_query": query,
-        "scraped_at": datetime.now().isoformat(),
-        "total_playlists": 0,
-        "playlists": [],
-    }
+    playlists = []
 
     try:
-        search_url = build_search_url(query, max_playlists, sort_by)
         driver = get_driver()
+        search_url = f"https://www.youtube.com/results?search_query={query}+playlist"
 
         print(f"🔍 Searching for '{query}' playlists...")
         driver.get(search_url)
-        time.sleep(0.5)
+        time.sleep(1)
 
         for _ in range(3):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(0.3)
+            time.sleep(0.5)
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
-
         playlist_links = soup.find_all("a", href=re.compile(r"/playlist\?list="))
-        unique_playlists = []
+
         seen_ids = set()
         for link in playlist_links:
-            match = re.search(r"/playlist\?list=([A-Za-z0-9_-]+)", link.get("href", ""))
-            if match and match.group(1) not in seen_ids:
-                seen_ids.add(match.group(1))
-                unique_playlists.append(link)
-
-        print(f"  Found {len(unique_playlists)} unique playlist links")
-
-        playlists_scraped = 0
-
-        for link in playlist_links:
-            if playlists_scraped >= max_playlists:
-                break
-
             href = link.get("href", "")
-            pl_match = re.search(r"/playlist\?list=([A-Za-z0-9_-]+)", href)
-
-            if not pl_match:
+            match = re.search(r"/playlist\?list=([A-Za-z0-9_-]+)", href)
+            if not match:
                 continue
 
-            pl_id = pl_match.group(1)
-            pl_url = f"https://www.youtube.com/playlist?list={pl_id}"
+            playlist_id = match.group(1)
+            if playlist_id in seen_ids:
+                continue
+            seen_ids.add(playlist_id)
 
-            print(f"\n📁 Scraping playlist: {pl_id}")
+            # Get title
+            title = link.get("title", "") or "Untitled Playlist"
 
-            # Step 2: Visit playlist and extract data
-            playlist_data = scrape_playlist_details(
-                driver, pl_id, pl_url, max_videos_per_playlist
+            # Get thumbnail
+            thumbnail = f"https://img.youtube.com/vi/{playlist_id}/hqdefault.jpg"
+
+            playlists.append(
+                {
+                    "playlist_id": playlist_id,
+                    "url": f"https://www.youtube.com/playlist?list={playlist_id}",
+                    "title": title[:200],
+                    "thumbnail": thumbnail,
+                    "video_count": 0,
+                }
             )
 
-            if playlist_data:
-                all_data["playlists"].append(playlist_data)
-                playlists_scraped += 1
-                print(f"  ✅ Scraped {len(playlist_data.get('videos', []))} videos")
+            if len(playlists) >= max_playlists:
+                break
 
-        all_data["total_playlists"] = playlists_scraped
-
-        # Step 3: Save to JSON
-        save_to_json(all_data)
-
-        print(f"\n✅ Complete! Scraped {playlists_scraped} playlists")
-        print(f"📄 Data saved to: {DATA_FILE}")
-
-        return all_data
+        print(f"  Found {len(playlists)} playlists")
+        return playlists
 
     except Exception as e:
         print(f"Error: {e}")
-        return None
+        return playlists
     finally:
         if driver:
             driver.quit()
 
 
-def scrape_playlist_details(driver, playlist_id, playlist_url, max_videos=50):
-    """
-    Visit a playlist and extract all details including videos
-    """
+def scrape_playlist_videos(playlist_id, playlist_url, max_videos=50):
+    """Scrape all videos from a playlist"""
+    driver = None
+    videos = []
+
     try:
+        driver = get_driver()
+        print(f"  📂 Scraping videos...")
+
         driver.get(playlist_url)
         time.sleep(1)
 
-        # Scroll to load all videos
         last_height = driver.execute_script(
             "return document.documentElement.scrollHeight"
         )
-        for i in range(3):
+        for _ in range(5):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(0.5)
             new_height = driver.execute_script(
@@ -178,56 +125,6 @@ def scrape_playlist_details(driver, playlist_id, playlist_url, max_videos=50):
             last_height = new_height
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
-
-        # Extract playlist info
-        playlist_data = {
-            "playlist_id": playlist_id,
-            "url": playlist_url,
-            "title": "",
-            "video_count": 0,
-            "thumbnail": "",
-            "videos": [],
-        }
-
-        # Get playlist title
-        title_elem = soup.find("yt-formatted-string", id="text-container")
-        if not title_elem:
-            title_elem = soup.find("h1", {"class": re.compile(r"style-scope")})
-        if title_elem:
-            playlist_data["title"] = title_elem.get_text(strip=True)[:200]
-
-        # Get video count
-        count_elem = soup.find("yt-formatted-string", string=re.compile(r"\d+\s*video"))
-        if count_elem:
-            playlist_data["video_count"] = count_elem.get_text(strip=True)
-
-        # Get thumbnail - try multiple methods
-        thumb_img = soup.find("img", class_=re.compile(r"yt-img-shadow"))
-        if thumb_img:
-            playlist_data["thumbnail"] = thumb_img.get("src", "")
-
-        # If no thumbnail, try to get first video's thumbnail
-        if not playlist_data["thumbnail"]:
-            video_elements = soup.find_all("ytd-playlist-video-renderer")
-            if video_elements:
-                first_video = video_elements[0]
-                link = first_video.find("a", id="video-title")
-                if link:
-                    video_url = link.get("href", "")
-                    vid_match = re.search(r"v=([A-Za-z0-9_-]+)", video_url)
-                    if vid_match:
-                        video_id = vid_match.group(1)
-                        playlist_data["thumbnail"] = (
-                            f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
-                        )
-
-        # Final fallback
-        if not playlist_data["thumbnail"]:
-            playlist_data["thumbnail"] = (
-                f"https://img.youtube.com/vi/{playlist_id}/hqdefault.jpg"
-            )
-
-        # Extract all videos
         video_elements = soup.find_all("ytd-playlist-video-renderer")
 
         for idx, elem in enumerate(video_elements[:max_videos], 1):
@@ -238,75 +135,134 @@ def scrape_playlist_details(driver, playlist_id, playlist_url, max_videos=50):
             video_url = link.get("href", "")
             video_title = link.get("title", "") or link.get_text(strip=True)
 
-            # Extract video ID
             vid_match = re.search(r"v=([A-Za-z0-9_-]+)", video_url)
             if not vid_match:
                 continue
 
             video_id = vid_match.group(1)
-
-            # Get video thumbnail
-            thumb_elem = elem.find("img", class_=re.compile(r"yt-img-shadow"))
-            video_thumbnail = (
-                thumb_elem.get("src", "")
-                if thumb_elem
+            thumb = elem.find("img")
+            thumbnail = (
+                thumb.get("src", "")
+                if thumb
                 else f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
             )
 
-            playlist_data["videos"].append(
+            videos.append(
                 {
                     "position": idx,
                     "video_id": video_id,
                     "title": video_title[:300],
                     "url": f"https://www.youtube.com/watch?v={video_id}",
-                    "thumbnail": video_thumbnail,
+                    "thumbnail": thumbnail,
                 }
             )
 
-        playlist_data["video_count"] = len(playlist_data["videos"])
-
-        return playlist_data
+        return videos
 
     except Exception as e:
-        print(f"  Error scraping playlist: {e}")
-        return None
+        print(f"Error: {e}")
+        return videos
+    finally:
+        if driver:
+            driver.quit()
 
 
-def save_to_json(data):
-    """Save scraped data to JSON file"""
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    print(f"  💾 Saved to {DATA_FILE}")
+# JSON Functions
+def get_playlists():
+    """Load playlists from JSON"""
+    if os.path.exists(PLAYLISTS_FILE):
+        with open(PLAYLISTS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
 
-def load_from_json():
-    """Load data from JSON file"""
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
+def save_playlists(playlists):
+    """Save playlists to JSON"""
+    with open(PLAYLISTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(playlists, f, indent=2, ensure_ascii=False)
+
+
+def get_playlist_videos(playlist_id):
+    """Load videos for a specific playlist"""
+    os.makedirs(VIDEOS_DIR, exist_ok=True)
+    video_file = os.path.join(VIDEOS_DIR, f"{playlist_id}.json")
+
+    if os.path.exists(video_file):
+        with open(video_file, "r", encoding="utf-8") as f:
             return json.load(f)
     return None
 
 
-def get_playlist_by_id(playlist_id):
-    """Get a specific playlist from JSON data"""
-    data = load_from_json()
-    if not data:
-        return None
+def save_playlist_videos(playlist_id, videos):
+    """Save playlist videos to JSON"""
+    os.makedirs(VIDEOS_DIR, exist_ok=True)
+    video_file = os.path.join(VIDEOS_DIR, f"{playlist_id}.json")
+    with open(video_file, "w", encoding="utf-8") as f:
+        json.dump(videos, f, indent=2, ensure_ascii=False)
 
-    for playlist in data.get("playlists", []):
-        if playlist.get("playlist_id") == playlist_id:
-            return playlist
+
+def get_playlist_by_id(playlist_id):
+    """Get playlist by ID with videos"""
+    playlists = get_playlists()
+    for p in playlists:
+        if p.get("playlist_id") == playlist_id:
+            videos = get_playlist_videos(playlist_id)
+            if videos:
+                p["videos"] = videos
+            return p
     return None
 
 
 def get_video_by_id(video_id):
-    """Get a specific video from JSON data"""
-    data = load_from_json()
-    if not data:
-        return None, None
-
-    for playlist in data.get("playlists", []):
-        for video in playlist.get("videos", []):
-            if video.get("video_id") == video_id:
-                return video, playlist
+    """Find video by ID"""
+    playlists = get_playlists()
+    for playlist in playlists:
+        videos = get_playlist_videos(playlist.get("playlist_id"))
+        if videos:
+            for video in videos:
+                if video.get("video_id") == video_id:
+                    return video, playlist
     return None, None
+
+
+def search_and_scrape_playlists(query, max_playlists=12):
+    """Main function: scrape playlists then scrape videos for each"""
+    print(f"\n=== Scraping: {query} ===")
+
+    # Step 1: Get playlists
+    playlists = scrape_playlists(query, max_playlists)
+
+    if not playlists:
+        print("No playlists found")
+        return None
+
+    # Step 2: Get videos for each playlist
+    for i, playlist in enumerate(playlists):
+        print(f"\n[{i + 1}/{len(playlists)}] {playlist['title'][:30]}...")
+        videos = scrape_playlist_videos(playlist["playlist_id"], playlist["url"])
+        playlist["video_count"] = len(videos)
+
+        if videos:
+            save_playlist_videos(playlist["playlist_id"], videos)
+
+        time.sleep(0.5)
+
+    # Step 3: Save playlists
+    save_playlists(playlists)
+
+    print(f"\n✅ Done! {len(playlists)} playlists saved")
+    return {
+        "search_query": query,
+        "scraped_at": datetime.now().isoformat(),
+        "total_playlists": len(playlists),
+    }
+
+
+def load_from_json():
+    """For compatibility - returns playlists with videos"""
+    playlists = get_playlists()
+    for p in playlists:
+        videos = get_playlist_videos(p.get("playlist_id"))
+        if videos:
+            p["videos"] = videos
+    return {"playlists": playlists} if playlists else None

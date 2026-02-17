@@ -1,7 +1,10 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.contrib import messages
 from .services.scraper import (
-    load_from_json,
+    search_and_scrape_playlists,
+    get_playlists,
     get_playlist_by_id,
     get_video_by_id,
 )
@@ -9,40 +12,32 @@ from .services.scraper import (
 
 def home(request):
     """Home page - show all playlists from JSON"""
-    recent_data = load_from_json()
-    playlists = recent_data.get("playlists", []) if recent_data else []
-
-    context = {
-        "playlists": playlists,
-        "recent_data": recent_data,
-    }
+    playlists = get_playlists()
+    context = {"playlists": playlists}
     return render(request, "scraper_app/home.html", context)
 
 
-def search_results(request):
-    """Search playlists from JSON data"""
-    query = request.GET.get("q", "").lower().strip()
+@require_http_methods(["POST"])
+def scrape_playlists(request):
+    """Scrape playlists from YouTube"""
+    query = request.POST.get("q", "").strip()
 
-    recent_data = load_from_json()
-    all_playlists = recent_data.get("playlists", []) if recent_data else []
+    if not query:
+        messages.error(request, "Please enter a search query")
+        return redirect("home")
 
-    if query:
-        filtered_playlists = [
-            p for p in all_playlists if query in p.get("title", "").lower()
-        ]
+    result = search_and_scrape_playlists(query, max_playlists=12)
+
+    if result:
+        messages.success(request, f"Found {result['total_playlists']} playlists!")
     else:
-        filtered_playlists = all_playlists
+        messages.error(request, "No playlists found")
 
-    context = {
-        "playlists": filtered_playlists,
-        "query": query,
-        "recent_data": recent_data,
-    }
-    return render(request, "scraper_app/home.html", context)
+    return redirect("home")
 
 
 def playlist_detail(request, playlist_id):
-    """Display playlist details from JSON"""
+    """Display playlist details with videos from JSON"""
     playlist = get_playlist_by_id(playlist_id)
 
     if not playlist:
@@ -50,9 +45,7 @@ def playlist_detail(request, playlist_id):
 
         raise Http404("Playlist not found")
 
-    context = {
-        "playlist": playlist,
-    }
+    context = {"playlist": playlist}
     return render(request, "scraper_app/playlist_detail.html", context)
 
 
