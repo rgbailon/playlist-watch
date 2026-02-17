@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}YouTube Playlist Search{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary-color: #ff0000;
+            --dark-bg: #181818;
+            --card-bg: #212121;
+        }
+        
+        body {
+            background-color: var(--dark-bg);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar {
+            background-color: #0f0f0f !important;
+            border-bottom: 1px solid #333;
+        }
+        
+        .navbar-brand {
+            color: var(--primary-color) !important;
+            font-weight: bold;
+        }
+        
+        .search-form {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .search-input {
+            background-color: #121212;
+            border: 1px solid #333;
+            color: #fff;
+        }
+        
+        .search-input:focus {
+            background-color: #121212;
+            border-color: var(--primary-color);
+            color: #fff;
+            box-shadow: 0 0 0 0.2rem rgba(255, 0, 0, 0.25);
+        }
+        
+        .btn-search {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: #fff;
+        }
+        
+        .btn-search:hover {
+            background-color: #cc0000;
+            border-color: #cc0000;
+            color: #fff;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border: none;
+            border-radius: 4px;
+            overflow: hidden;
+            transition: transform 0.3s, z-index 0.3s;
+            transform-origin: center bottom;
+        }
+        
+        .card:hover {
+            transform: scale(1.05);
+            z-index: 10;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+        }
+        
+        .card-title {
+            color: #ffffff;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 0.25rem;
+        }
+        
+        .card-title:hover {
+            color: #ff0000;
+        }
+        
+        .card-text {
+            color: #999;
+            font-size: 0.75rem;
+        }
+        
+        .card-body {
+            padding: 0.75rem;
+        }
+        
+        .playlist-thumbnail {
+            position: relative;
+            aspect-ratio: 16/9;
+            background-color: #333;
+            overflow: hidden;
+        }
+        
+        .playlist-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+        
+        .card:hover .playlist-thumbnail img {
+            transform: scale(1.05);
+        }
+        
+        .video-count-badge {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background-color: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+        
+        .card-link {
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .video-player-container {
+            background-color: #000;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .video-player-container iframe {
+            width: 100%;
+            height: 450px;
+            border: none;
+        }
+        
+        .video-player-container #player {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .video-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .video-item {
+            display: flex;
+            gap: 12px;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+            text-decoration: none;
+            color: #fff;
+        }
+        
+        .video-item:hover {
+            background-color: #333;
+        }
+        
+        .video-item.active {
+            background-color: #333;
+            border-left: 3px solid var(--primary-color);
+        }
+        
+        .video-item-thumbnail {
+            width: 120px;
+            min-width: 120px;
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .video-item-thumbnail img {
+            width: 100%;
+            height: 68px;
+            object-fit: cover;
+        }
+        
+        .video-item-title {
+            font-size: 0.85rem;
+            color: #fff;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.3;
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .back-btn {
+            color: #aaa;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .back-btn:hover {
+            color: #fff;
+        }
+        
+        footer {
+            background-color: #0f0f0f;
+            border-top: 1px solid #333;
+            padding: 20px 0;
+            margin-top: 40px;
+            text-align: center;
+            color: #666;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            z-index: 1000;
+        }
+        
+        body {
+            padding-bottom: 80px;
+        }
+        
+        /* Allow YouTube embeds */
+        iframe {
+            allow: autoplay;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark py-3" style="background-color: #0f0f0f;">
+        <div class="container">
+            <a class="navbar-brand me-auto" href="{% url 'home' %}">
+                <i class="bi bi-youtube text-red-500"></i> Playlist Search
+            </a>
+            <form class="d-flex mx-auto" action="{% url 'search_results' %}" method="get">
+                <div class="input-group" style="width: 500px;">
+                    <input class="form-control rounded-l-lg px-4" type="search" name="q" 
+                           placeholder="Search playlists..." value="{{ query|default:'' }}" 
+                           aria-label="Search" 
+                           style="background:#222;border:1px solid #444;color:#fff;">
+                    <select name="sort" class="form-select" 
+                            style="background:#222;border:1px solid #444;color:#fff;max-width:100px;">
+                        <option value="view_count">Views</option>
+                        <option value="relevance">Relevance</option>
+                        <option value="upload_date">New</option>
+                    </select>
+                    <button class="btn btn-danger rounded-r-lg px-3" type="submit">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </form>
+            <div style="width: 100px;"></div>
+        </div>
+    </nav>
+
+    <main class="py-4" style="width: 90%; margin: 0 auto; padding: 1%;">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <div class="container">
+            <p class="mb-0">YouTube Playlist Search - Built with Django & Selenium</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,105 @@
+{% extends 'scraper_app/base.html' %}
+
+{% block title %}{% if query %}Search: {{ query }}{% else %}YouTube Playlist Search{% endif %}{% endblock %}
+
+{% block content %}
+<div class="py-4"></div>
+
+<div id="loading-state" class="text-center py-5" style="min-height: 80vh; display: none; flex-direction: column; justify-content: center; align-items: center;">
+    <div class="spinner-border text-danger" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <h4 class="mt-4" style="color: #fff;">Searching YouTube...</h4>
+    <p class="text-muted">Scraping playlists and videos</p>
+    <div class="progress mt-3" style="height: 8px; max-width: 500px; width: 100%; background-color: #333; border-radius: 4px;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" role="progressbar" style="width: 100%"></div>
+    </div>
+    <p class="mt-3 text-muted" id="progress-text">Initializing...</p>
+</div>
+
+<div id="results-container">
+    {% if playlists %}
+    <div class="row mb-3">
+        <div class="col-12">
+            <p class="text-muted">
+                <i class="bi bi-collection"></i> {{ playlists|length }} playlists found
+            </p>
+        </div>
+    </div>
+    
+    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-2 g-md-3">
+        {% for playlist in playlists %}
+        <div class="col">
+            <a href="{% url 'playlist_detail' playlist.playlist_id %}" class="card-link text-decoration-none">
+                <div class="card h-100">
+                    <div class="playlist-thumbnail">
+                        {% if playlist.thumbnail %}
+                        <img src="{{ playlist.thumbnail }}" alt="{{ playlist.title }}" loading="lazy" onerror="this.style.display='none'">
+                        {% endif %}
+                        <span class="video-count-badge">
+                            <i class="bi bi-collection-play"></i> {{ playlist.video_count }}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">{{ playlist.title }}</h5>
+                        <p class="card-text">{{ playlist.video_count }} videos</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if is_loading %}
+    var progressText = document.getElementById('progress-text');
+    var steps = [
+        'Searching YouTube...',
+        'Finding playlists...',
+        'Scraping playlist details...',
+        'Loading videos...',
+        'Almost done...'
+    ];
+    var stepIndex = 0;
+    
+    document.getElementById('loading-state').style.display = 'block';
+    document.getElementById('results-container').style.display = 'none';
+    
+    // Update progress text periodically
+    var progressInterval = setInterval(function() {
+        progressText.textContent = steps[stepIndex];
+        stepIndex = (stepIndex + 1) % steps.length;
+    }, 3000);
+    
+    fetch("{% url 'start_search' %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'q={{ query }}'
+    })
+    .then(response => response.json())
+    .then(data => {
+        clearInterval(progressInterval);
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Search failed: ' + data.error);
+            window.location.href = '/';
+        }
+    })
+    .catch(error => {
+        clearInterval(progressInterval);
+        console.error('Error:', error);
+        alert('Search failed');
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}
