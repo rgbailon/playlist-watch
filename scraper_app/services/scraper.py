@@ -38,7 +38,7 @@ def get_driver():
 
 
 def scrape_playlists(query, max_playlists=15):
-    """Scrape playlist search results - gets URLs, thumbnails, video counts"""
+    """Scrape playlist search results"""
     driver = None
     playlists = []
 
@@ -55,10 +55,20 @@ def scrape_playlists(query, max_playlists=15):
             time.sleep(0.5)
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
-        playlist_links = soup.find_all("a", href=re.compile(r"/playlist\?list="))
+
+        # Find all playlist renderers
+        playlist_renderers = soup.find_all("ytd-playlist-renderer")
 
         seen_ids = set()
-        for link in playlist_links:
+        for renderer in playlist_renderers:
+            if len(playlists) >= max_playlists:
+                break
+
+            # Get playlist ID
+            link = renderer.find("a", href=re.compile(r"/playlist\?list="))
+            if not link:
+                continue
+
             href = link.get("href", "")
             match = re.search(r"/playlist\?list=([A-Za-z0-9_-]+)", href)
             if not match:
@@ -70,10 +80,18 @@ def scrape_playlists(query, max_playlists=15):
             seen_ids.add(playlist_id)
 
             # Get title
-            title = link.get("title", "") or "Untitled Playlist"
+            title = "Untitled Playlist"
+            title_elem = renderer.find("yt-formatted-string")
+            if title_elem:
+                title = title_elem.get_text(strip=True)
+            if not title:
+                title = link.get("title", "") or "Untitled Playlist"
 
             # Get thumbnail
             thumbnail = f"https://img.youtube.com/vi/{playlist_id}/hqdefault.jpg"
+            img = renderer.find("img")
+            if img and img.get("src"):
+                thumbnail = img.get("src")
 
             playlists.append(
                 {
@@ -84,9 +102,6 @@ def scrape_playlists(query, max_playlists=15):
                     "video_count": 0,
                 }
             )
-
-            if len(playlists) >= max_playlists:
-                break
 
         print(f"  Found {len(playlists)} playlists")
         return playlists
