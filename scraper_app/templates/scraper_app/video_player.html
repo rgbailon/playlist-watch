@@ -18,11 +18,14 @@
         <div class="card mb-4">
             <div class="card-body">
                 <h5>{{ video.title }}</h5>
-                <p class="text-muted mb-0">
+                <p class="text-muted mb-1">
                     <i class="bi bi-collection-play"></i> 
                     <a href="{% url 'playlist_detail' playlist.playlist_id %}" class="text-muted">
                         {{ playlist.title }}
                     </a>
+                </p>
+                <p class="text-muted mb-0" style="font-size: 0.85rem;">
+                    <span id="channel-name"><i class="bi bi-person"></i> YouTube Channel</span>
                 </p>
             </div>
         </div>
@@ -42,7 +45,7 @@
     <div class="col-lg-4">
         <div class="card sticky-top" style="top: 20px; max-height: calc(100vh - 40px); overflow-y: auto;">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Up Next</h6>
+                <h6 class="mb-0">{{ playlist.title|default:"Up Next" }}</h6>
                 <button id="autoplay-toggle" class="btn btn-danger btn-sm">
                     <i class="bi bi-play-circle"></i> Auto
                 </button>
