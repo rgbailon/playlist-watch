@@ -9,63 +9,49 @@
 
 <div class="row">
     <div class="col-lg-8">
-        <!-- Video Player -->
+        <!-- Video Player with YouTube API -->
         <div class="video-player-container mb-4">
-            <div id="video-wrapper">
-                <iframe 
-                    id="youtube-iframe"
-                    src="https://www.youtube.com/embed/{{ video.video_id }}"
-                    frameborder="0"
-                    allowfullscreen>
-                </iframe>
-            </div>
-            <div id="video-fallback" class="text-center p-5" style="display:none;">
-                <i class="bi bi-play-circle display-1 text-danger"></i>
-                <h4 class="mt-3">Video cannot be embedded</h4>
-            </div>
+            <div id="player"></div>
         </div>
-        
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var iframe = document.getElementById('youtube-iframe');
-            var wrapper = document.getElementById('video-wrapper');
-            var fallback = document.getElementById('video-fallback');
-            
-            iframe.onerror = function() {
-                wrapper.style.display = 'none';
-                fallback.style.display = 'block';
-            };
-        });
-        </script>
         
         <!-- Video Info -->
         <div class="card mb-4">
             <div class="card-body">
-                <h3>{{ video.title }}</h3>
-                <p class="text-muted mb-2">
+                <h5>{{ video.title }}</h5>
+                <p class="text-muted mb-0">
                     <i class="bi bi-collection-play"></i> 
                     <a href="{% url 'playlist_detail' playlist.playlist_id %}" class="text-muted">
                         {{ playlist.title }}
                     </a>
                 </p>
-                <div class="d-flex gap-2 flex-wrap">
-                    <a href="{% url 'playlist_detail' playlist.playlist_id %}" class="btn btn-outline-secondary">
-                        <i class="bi bi-playlist"></i> View Playlist
-                    </a>
-                </div>
             </div>
+        </div>
+        
+        <!-- Playlist Controls -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <button id="prev-btn" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-skip-backward"></i> Previous
+            </button>
+            <span id="video-counter" class="text-muted"></span>
+            <button id="next-btn" class="btn btn-outline-secondary btn-sm">
+                Next <i class="bi bi-skip-forward"></i>
+            </button>
         </div>
     </div>
     
     <div class="col-lg-4">
         <div class="card sticky-top" style="top: 20px; max-height: calc(100vh - 40px); overflow-y: auto;">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-list-ul"></i> Up Next ({{ related_videos|length }} videos)</h5>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Up Next</h6>
+                <button id="autoplay-toggle" class="btn btn-danger btn-sm">
+                    <i class="bi bi-play-circle"></i> Auto
+                </button>
             </div>
-            <div class="video-list">
+            <div class="video-list" id="playlist-videos">
                 {% for related in related_videos %}
                 <a href="{% url 'video_player' related.video_id %}" 
-                   class="video-item {% if related.video_id == video.video_id %}active{% endif %}">
+                   class="video-item {% if related.video_id == video.video_id %}active{% endif %}"
+                   data-video-id="{{ related.video_id }}">
                     <div class="video-item-thumbnail">
                         <img src="{{ related.thumbnail }}" alt="{{ related.title }}" loading="lazy">
                     </div>
@@ -74,13 +60,84 @@
                         <small style="color: #999;">#{{ related.position }}</small>
                     </div>
                 </a>
-                {% empty %}
-                <div class="p-3 text-muted">
-                    <small>No more videos in this playlist</small>
-                </div>
                 {% endfor %}
             </div>
         </div>
     </div>
 </div>
+
+<script>
+var tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+var firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+var player;
+var videoIds = [{% for v in related_videos %}'{{ v.video_id }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+var currentIndex = videoIds.indexOf('{{ video.video_id }}');
+var autoplay = true;
+
+function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player', {
+        videoId: '{{ video.video_id }}',
+        playerVars: {
+            'autoplay': 1,
+            'rel': 0,
+            'modestbranding': 1,
+            'playsinline': 1
+        },
+        events: {
+            'onStateChange': onPlayerStateChange
+        }
+    });
+}
+
+function onPlayerStateChange(event) {
+    if (event.data == YT.PlayerState.ENDED && autoplay && currentIndex < videoIds.length - 1) {
+        currentIndex++;
+        loadVideo(videoIds[currentIndex]);
+    }
+    updateCounter();
+}
+
+function loadVideo(videoId) {
+    if (player && player.loadVideoById) {
+        player.loadVideoById(videoId);
+        currentIndex = videoIds.indexOf(videoId);
+        updateActiveVideo();
+    }
+}
+
+function updateActiveVideo() {
+    document.querySelectorAll('#playlist-videos .video-item').forEach(function(el) {
+        el.classList.remove('active');
+    });
+    var active = document.querySelector('#playlist-videos .video-item[data-video-id="' + videoIds[currentIndex] + '"]');
+    if (active) active.classList.add('active');
+}
+
+function updateCounter() {
+    var counter = document.getElementById('video-counter');
+    if (counter) counter.textContent = (currentIndex + 1) + ' / ' + videoIds.length;
+}
+
+document.getElementById('next-btn').addEventListener('click', function() {
+    if (currentIndex < videoIds.length - 1) {
+        currentIndex++;
+        loadVideo(videoIds[currentIndex]);
+    }
+});
+
+document.getElementById('prev-btn').addEventListener('click', function() {
+    if (currentIndex > 0) {
+        currentIndex--;
+        loadVideo(videoIds[currentIndex]);
+    }
+});
+
+document.getElementById('autoplay-toggle').addEventListener('click', function() {
+    autoplay = !autoplay;
+    this.innerHTML = autoplay ? '<i class="bi bi-play-circle"></i> Auto' : '<i class="bi bi-pause-circle"></i> Auto';
+});
+</script>
 {% endblock %}
