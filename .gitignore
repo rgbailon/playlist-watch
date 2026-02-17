@@ -19,3 +19,5 @@ media/
 *.swp
 *.swo
 .ruff_cache/
+*.json
+videos/
